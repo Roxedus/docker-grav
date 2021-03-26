@@ -1,45 +1,39 @@
 #!/usr/bin/with-contenv bash
 
-if [ ! -e "/config/www/grav" ]; then
-    cp -R /app/grav /config/www
-fi
 
-if ! grep -q 'config-v1' /config/nginx/default; then
-    cp /defaults/default /config/nginx
+if ! grep -q 'config-v1' /config/nginx/site-confs/default; then
+    cp /defaults/default /config/site-confs/nginx
 fi
 
 # make folders
 mkdir -p \
 	/config/crontabs
 
-# if root crontabs do not exist in config
-# copy root crontab from system
-if [[ ! -f /config/crontabs/root ]] && \
-crontab -l -u root; then
-	crontab -l -u root > /config/crontabs/root
-fi
+symlinks=( \
+/app/grav-admin/backup \
+/app/grav-admin/logs \
+/app/grav-admin/user \
+)
 
-# if root crontabs still do not exist in config (were not copied from system)
-# copy root crontab from included defaults
-[[ ! -f /config/crontabs/root ]] && \
-	cp /defaults/crontabs/root /config/crontabs/
+# Most likely ephermental
+# /app/grav-admin/assets \
+# /app/grav-admin/cache \
+# /app/grav-admin/images \
 
-# if abc crontabs do not exist in config
-# copy abc crontab from system
-if [[ ! -f /config/crontabs/abc ]] && \
-crontab -l -u abc; then
-	crontab -l -u abc > /config/crontabs/abc
-fi
+shopt -s globstar dotglob
 
-# if abc crontabs still do not exist in config (were not copied from system)
-# copy abc crontab from included defaults
-[[ ! -f /config/crontabs/abc ]] && \
-	cp /defaults/crontabs/abc /config/crontabs/
+for i in "${symlinks[@]}"; do
+[[ -d /config/www/"$(basename "$i")" && ! -L "$i"  ]] && rm -rf "$i"
+[[ ! -d /config/www/"$(basename "$i")" && ! -L "$i"  ]] && mv "$i" /config/www/
+[[ -d /config/www/"$(basename "$i")" && ! -L "$i"  ]] && ln -s /config/www/"$(basename "$i")" "$i"
+done
 
-# import user crontabs
-crontab -u root /config/crontabs/root
-crontab -u abc /config/crontabs/abc
+shopt -u globstar dotglob
+
+# Prevent manual updates potentially breaking instances
+sed -i 's/enable_auto_updates_check: true/enable_auto_updates_check: false/' /config/www/user/plugins/admin/admin.yaml
 
 # permissions
 chown -R abc:abc \
+	/app \
 	/config
